@@ -61,6 +61,18 @@
                         <div class="big-number" style="color: #ff6b81;" th:text="${averageAudioScore} + '%'">0%</div>
                     </div>
 
+                    <!-- Smile Score Card -->
+                    <div class="stat-item">
+                        <h3>Smile Score</h3>
+                        <div class="big-number" style="color: #ff9f43;" th:text="${averageSmileScore} + '%'">0%</div>
+                    </div>
+
+                    <!-- Posture Score Card -->
+                    <div class="stat-item">
+                        <h3>Posture Score</h3>
+                        <div class="big-number" style="color: #1dd1a1;" th:text="${averagePostureScore} + '%'">0%</div>
+                    </div>
+
                     <!-- Insight Card -->
                     <div class="insight-card">
                         <i class="fas fa-lightbulb"></i>
@@ -103,6 +115,9 @@
                                 <th>Date</th>
                                 <th>Eye Contact</th>
                                 <th>Fluency</th>
+                                <th>Smile</th>
+                                <th>Posture</th>
+                                <th>Badges</th>
                                 <th>Feedback</th>
                             </tr>
                         </thead>
@@ -124,10 +139,32 @@
                                         90%
                                     </span>
                                 </td>
+                                <td>
+                                    <span class="score-badge"
+                                        th:classappend="${practiceSession.smileScore >= 80 ? 'good' : (practiceSession.smileScore >= 50 ? 'avg' : 'poor')}"
+                                        th:text="${practiceSession.smileScore} + '%'">
+                                        --
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="score-badge"
+                                        th:classappend="${practiceSession.postureScore >= 80 ? 'good' : (practiceSession.postureScore >= 50 ? 'avg' : 'poor')}"
+                                        th:text="${practiceSession.postureScore} + '%'">
+                                        --
+                                    </span>
+                                </td>
+                                <td style="vertical-align: middle;">
+                                    <span th:each="badge : ${practiceSession.badges}" th:text="${badge}"
+                                        style="display: inline-block; background: rgba(255, 215, 0, 0.15); border: 1px solid rgba(255, 215, 0, 0.4); color: #b45309; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-right: 4px; margin-bottom: 2px;">
+                                        🏆 Badge
+                                    </span>
+                                    <span th:if="${#lists.isEmpty(practiceSession.badges)}"
+                                        style="color: #9ca3af; font-size: 0.8rem;">-</span>
+                                </td>
                                 <td th:text="${practiceSession.feedback}">Feedback</td>
                             </tr>
                             <tr th:if="${#lists.isEmpty(sessions)}">
-                                <td colspan="3" style="text-align:center;">No sessions found. Start practicing!</td>
+                                <td colspan="7" style="text-align:center;">No sessions found. Start practicing!</td>
                             </tr>
                         </tbody>
                     </table>

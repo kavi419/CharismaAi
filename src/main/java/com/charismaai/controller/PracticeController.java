@@ -67,11 +67,21 @@ public class PracticeController {
             if (exitCode == 0) {
                 // Parse the JSON result to get score and feedback
                 try {
+                    // Extract JSON substring (ignore logs/prefixes)
+                    int jsonStart = result.indexOf("{");
+                    int jsonEnd = result.lastIndexOf("}");
+                    if (jsonStart == -1 || jsonEnd == -1) {
+                        throw new RuntimeException("No JSON found in output");
+                    }
+                    String jsonPart = result.substring(jsonStart, jsonEnd + 1);
+
                     com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                    com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(result);
+                    com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(jsonPart);
 
                     double score = node.get("eye_contact_score").asDouble();
                     double audioScore = node.get("audio_score").asDouble();
+                    double smileScore = node.has("smile_score") ? node.get("smile_score").asDouble() : 0;
+                    double postureScore = node.has("posture_score") ? node.get("posture_score").asDouble() : 0;
                     int pauseCount = node.get("pause_count").asInt();
                     String feedback = node.get("feedback").asText();
                     String transcript = "";
@@ -87,17 +97,19 @@ public class PracticeController {
 
                     // Save to Database
                     com.charismaai.model.PracticeSession session = new com.charismaai.model.PracticeSession(
-                            fileName, score, audioScore, pauseCount, feedback, transcript,
+                            fileName, score, audioScore, smileScore, postureScore, pauseCount, feedback, transcript,
                             java.time.LocalDateTime.now());
                     session.setUser(currentUser);
                     sessionRepository.save(session);
 
-                } catch (Exception e) {
-                    System.err.println("Error saving to DB: " + e.getMessage());
-                    // Don't fail the request if DB save fails, just log it
-                }
+                    return jsonPart; // Return the CLEANED JSON to frontend
 
-                return result; // Return the JSON from Python
+                } catch (Exception e) {
+                    System.err.println("Error saving to DB or parsing: " + e.getMessage());
+                    // If parsing failed, we might still want to return result to see error,
+                    // but likely we should return an error JSON
+                    return "{\"error\": \"Server parsing error: " + e.getMessage() + "\"}";
+                }
             } else {
                 return "{\"error\": \"Analysis failed\", \"details\": \"" + result.replace("\"", "'").replace("\n", " ")
                         + "\"}";

@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class ProfileController {
 
     @Autowired
-    private UserRepository userRepository;
+    private com.charismaai.repository.UserRepository userRepository;
+
+    @Autowired
+    private com.charismaai.repository.SessionRepository sessionRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -26,6 +29,28 @@ public class ProfileController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         User user = userRepository.findByUsername(auth.getName()).orElseThrow();
         model.addAttribute("user", user);
+
+        // Fetch user sessions
+        java.util.List<com.charismaai.model.PracticeSession> sessions = sessionRepository
+                .findByUserOrderByCreatedDateDesc(user);
+
+        // Calculate Stats
+        int totalSessions = sessions.size();
+        double highestScore = 0;
+
+        for (com.charismaai.model.PracticeSession session : sessions) {
+            // Calculate overall score if not stored (or assume frontend logic match)
+            // Using logic: (eye + audio + smile + posture) / 4
+            double overall = (session.getEyeContactScore() + session.getAudioScore() + session.getSmileScore()
+                    + session.getPostureScore()) / 4.0;
+            if (overall > highestScore) {
+                highestScore = overall;
+            }
+        }
+
+        model.addAttribute("totalSessions", totalSessions);
+        model.addAttribute("highestScore", (int) highestScore);
+
         return "profile";
     }
 

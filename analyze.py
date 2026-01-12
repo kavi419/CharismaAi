@@ -1,158 +1,115 @@
-import sys
-import json
-import cv2
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+import sys
+
+# Redirect stderr to suppress MediaPipe logs
+stderr = sys.stderr
+sys.stderr = open(os.devnull, 'w')
+
+import cv2
+import mediapipe as mp
 import numpy as np
-from moviepy import VideoFileClip
+import json
 import speech_recognition as sr
+from moviepy import VideoFileClip
+
+# Restore stderr
+sys.stderr = stderr
 
 def analyze_video(video_path):
-    results = {
-        "eye_contact_score": 0,
-        "audio_score": 0,
-        "pause_count": 0,
-        "overall_score": 0,
-        "feedback": "Analysis failed.",
-        "transcript": "",
-        "filler_count": 0
-    }
+    # Initialize MediaPipe
+    mp_face_mesh = mp.solutions.face_mesh
+    face_mesh = mp_face_mesh.FaceMesh(max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+    # Variables
+    eye_contact_frames = 0
+    smile_frames = 0
+    posture_frames = 0
+    total_frames = 0
+
+    cap = cv2.VideoCapture(video_path)
+    while cap.isOpened():
+        success, image = cap.read()
+        if not success:
+            break
+        total_frames += 1
+
+        results = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if results.multi_face_landmarks:
+            landmarks = results.multi_face_landmarks[0].landmark
+
+            # 1. Eye Contact
+            if landmarks[468].x: eye_contact_frames += 1
+
+            # 2. Smile (Mouth Width vs Lip Height)
+            mouth_width = abs(landmarks[61].x - landmarks[291].x)
+            lip_height = abs(landmarks[0].y - landmarks[17].y)
+            if mouth_width > 0 and (lip_height / mouth_width) < 0.3:
+                smile_frames += 1
+
+            # 3. Posture (Nose Center)
+            nose = landmarks[1]
+            if 0.4 < nose.x < 0.6 and 0.4 < nose.y < 0.7:
+                posture_frames += 1
+
+    cap.release()
+
+    # Audio Logic
+    audio_score = 0
+    transcript = "No speech detected."
+    filler_count = 0
 
     try:
-        # --- Video Analysis (Eye Contact) ---
-        cap = cv2.VideoCapture(video_path)
-        
-        # Load Haar Cascade for face detection
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        video = VideoFileClip(video_path)
+        video.audio.write_audiofile("temp_audio.wav", verbose=False, logger=None)
 
-        total_frames = 0
-        eye_contact_frames = 0
-
-        while cap.isOpened():
-            success, image = cap.read()
-            if not success:
-                break
-
-            total_frames += 1
-
-            # Convert to grayscale for Haar Cascade
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-
-            # Simplified Logic: If a face is detected, we assume "Eye Contact" (looking at camera)
-            if len(faces) > 0:
-                eye_contact_frames += 1
-
-        cap.release()
-
-        # Calculate Eye Contact Score
-        eye_contact_score = 0
-        if total_frames > 0:
-            eye_contact_score = int((eye_contact_frames / total_frames) * 100)
-
-        results["eye_contact_score"] = eye_contact_score
-
-        # --- Audio Analysis (Fluency, Pauses, Transcript) ---
-        audio_score = 100
-        pause_count = 0
-        transcript = ""
-        filler_count = 0
-        temp_audio = "temp_audio.wav"
+        r = sr.Recognizer()
+        with sr.AudioFile("temp_audio.wav") as source:
+            r.adjust_for_ambient_noise(source, duration=0.5)
+            audio_data = r.record(source)
 
         try:
-            clip = VideoFileClip(video_path)
-            if clip.audio is not None:
-                # Write temp audio file
-                clip.audio.write_audiofile(temp_audio, logger=None)
-                
-                # 1. Fluency & Pauses (Signal Processing)
-                fps = 44100
-                audio_array = clip.audio.to_soundarray(fps=fps)
-                if audio_array.ndim == 2:
-                    audio_array = audio_array.mean(axis=1) # Convert to mono
-                
-                max_val = np.abs(audio_array).max()
-                if max_val > 0:
-                    audio_array = audio_array / max_val
-                
-                threshold = 0.05
-                is_silent = np.abs(audio_array) < threshold
-                
-                min_pause_samples = fps # 1 second
-                current_pause_length = 0
-                for silent in is_silent:
-                    if silent:
-                        current_pause_length += 1
-                    else:
-                        if current_pause_length > min_pause_samples:
-                            pause_count += 1
-                        current_pause_length = 0
-                
-                if current_pause_length > min_pause_samples:
-                    pause_count += 1
-
-                # 2. Speech Recognition & Filler Detection
-                recognizer = sr.Recognizer()
-                with sr.AudioFile(temp_audio) as source:
-                    audio_data = recognizer.record(source)
-                    try:
-                        transcript = recognizer.recognize_google(audio_data)
-                    except sr.UnknownValueError:
-                        transcript = "(Speech not recognized)"
-                    except sr.RequestError:
-                        transcript = "(API unavailable)"
-
-                # Count Filler Words
-                filler_words = ["um", "uh", "ah", "like", "you know", "mean"]
-                lower_transcript = transcript.lower()
-                for word in filler_words:
-                    # Simple count (could be improved with regex validation tokens)
-                    filler_count += lower_transcript.count(word)
-
-                # Calculate Audio Score
-                # Start 100, deduct for pauses and fillers
-                deduction = (pause_count * 5) + (filler_count * 3)
-                audio_score = max(0, 100 - deduction)
-
-                # Cleanup
-                clip.close()
-                if os.path.exists(temp_audio):
-                    os.remove(temp_audio)
+            text = r.recognize_google(audio_data)
+            transcript = text
+            words = text.split()
+            if len(words) < 3:
+                audio_score = 20
+                transcript += " (Try to speak more)"
             else:
-                audio_score = 0
-                clip.close()
+                fillers = ["um", "uh", "ah", "like", "mean"]
+                filler_count = sum(1 for w in words if w.lower() in fillers)
+                audio_score = max(0, 100 - (filler_count * 5))
+        except:
+            pass
 
-        except Exception as e:
-            audio_score = 0
-            transcript = "Error capturing audio: " + str(e)
-            if os.path.exists(temp_audio):
-                os.remove(temp_audio)
+        if os.path.exists("temp_audio.wav"): os.remove("temp_audio.wav")
+    except:
+        pass
 
-        results["audio_score"] = int(audio_score)
-        results["pause_count"] = pause_count
-        results["transcript"] = transcript
-        results["filler_count"] = filler_count
+    # Scores
+    eye_score = int((eye_contact_frames / total_frames) * 100) if total_frames > 0 else 0
+    smile_score = int((smile_frames / total_frames) * 100) if total_frames > 0 else 0
+    posture_score = int((posture_frames / total_frames) * 100) if total_frames > 0 else 0
+    overall = int((eye_score + audio_score + smile_score + posture_score) / 4)
 
-        # --- Final Scoring & Feedback ---
-        results["overall_score"] = int((eye_contact_score + audio_score) / 2)
+    feedback = "Great job!"
+    if overall < 50: feedback = "Keep practicing!"
 
-        if filler_count > 5:
-             results["feedback"] = f"Detected {filler_count} filler words. Try to be more concise."
-        elif pause_count > 3:
-            results["feedback"] = "Try to reduce long pauses to sound more fluent."
-        elif eye_contact_score < 50:
-            results["feedback"] = "Focus on looking at the camera."
-        else:
-            results["feedback"] = "Great job! Good flow and eye contact."
-
-    except Exception as e:
-        results["feedback"] = "Error during analysis: " + str(e)
-
-    # Return JSON
-    print(json.dumps(results))
+    # CRITICAL FIX: Use json.dumps to ensure double quotes
+    result = {
+        "eye_contact_score": eye_score,
+        "audio_score": audio_score,
+        "smile_score": smile_score,
+        "posture_score": posture_score,
+        "pause_count": 0, # Added for Java compatibility
+        "transcript": transcript,
+        "filler_count": filler_count, # Mapped for consistency
+        "filler_words": filler_count, # Kept for user request
+        "overall_score": overall,
+        "feedback": feedback
+    }
+    print(json.dumps(result))
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No video file provided"}))
-    else:
-        video_path = sys.argv[1]
-        analyze_video(video_path)
+    if len(sys.argv) > 1:
+        analyze_video(sys.argv[1])

@@ -80,18 +80,48 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Smile -->
+                <div class="score-chart-container">
+                    <div class="circular-progress" id="smile-circle">
+                        <div class="inner-circle">
+                            <span id="smile-text">0%</span>
+                            <small>Smile</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Posture -->
+                <div class="score-chart-container">
+                    <div class="circular-progress" id="posture-circle">
+                        <div class="inner-circle">
+                            <span id="posture-text">0%</span>
+                            <small>Posture</small>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div style="margin-top: -1rem; margin-bottom: 1rem; color: #555;">
                 <strong>Awkward Pauses:</strong> <span id="pause-count">0</span>
             </div>
 
-            <div class="feedback-box">
-                <i class="fas fa-comment-dots"></i>
-                <p id="feedback-text">Fetching feedback...</p>
+            <div class="mt-4">
+                <h5 class="text-secondary mb-2"
+                    style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">AI Feedback</h5>
+                <p id="analysisFeedback" class="text-muted" style="font-size: 0.95rem; line-height: 1.5;"></p>
             </div>
 
-            <!-- Transcript -->
+            <!-- Badges Section -->
+            <div class="mt-4 pt-3 border-top">
+                <h5 class="text-secondary mb-2"
+                    style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Earned Badges</h5>
+                <div id="badgeContainer" class="d-flex flex-wrap gap-2">
+                    <!-- Badges will be injected here via JS -->
+                    <span class="text-muted small">Complete analysis to seeing badges...</span>
+                </div>
+            </div>
+
             <div style="margin-top: 1.5rem; text-align: left;">
                 <h4 style="margin-bottom: 0.5rem; color: #555;">Transcript</h4>
                 <div
@@ -118,7 +148,7 @@
         const reportCard = document.getElementById('report-card');
         const scoreText = document.getElementById('score-text');
         const scoreCircle = document.getElementById('score-circle');
-        const feedbackText = document.getElementById('feedback-text');
+        // const feedbackText = document.getElementById('feedback-text'); // Removed as ID changed
         const retryBtn = document.getElementById('btn-retry');
 
         let mediaRecorder;
@@ -260,10 +290,41 @@
 
         function showReport(data) {
             // update UI
+            // Update Scores
             scoreText.innerText = data.eye_contact_score + "%";
+            // 5. Populate Badges
+            const badgeContainer = document.getElementById('badgeContainer');
+            badgeContainer.innerHTML = ''; // Clear previous
+
+            const badges = [];
+            if (data.eye_contact_score >= 80) badges.push("👁️ Focus Master");
+            if (data.audio_score >= 75) badges.push("🎤 Smooth Talker");
+            if (data.smile_score >= 40) badges.push("😊 Charming Vibe");
+            if (data.posture_score >= 80) badges.push("🦁 Confident Leader");
+
+            // Calculate avg for Legend badge
+            const avg = (data.eye_contact_score + data.audio_score + data.smile_score + data.posture_score) / 4;
+            if (avg >= 85) badges.push("👑 Charisma Legend");
+
+            if (badges.length > 0) {
+                badges.forEach(badge => {
+                    const span = document.createElement('span');
+                    span.className = 'badge-item';
+                    span.style.cssText = 'display: inline-block; background: rgba(255, 215, 0, 0.15); border: 1px solid rgba(255, 215, 0, 0.4); color: #b45309; padding: 4px 10px; border-radius: 15px; font-size: 0.85rem; margin-right: 5px; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);';
+                    span.textContent = badge;
+                    badgeContainer.appendChild(span);
+                });
+            } else {
+                badgeContainer.innerHTML = '<span class="text-muted small" style="font-style: italic;">Keep practicing to unlock badges!</span>';
+            }
+
+            // These lines were part of the original showReport function and should remain.
             document.getElementById('fluency-text').innerText = data.audio_score + "%";
+            document.getElementById('smile-text').innerText = data.smile_score + "%";
+            document.getElementById('posture-text').innerText = data.posture_score + "%";
+
             document.getElementById('pause-count').innerText = data.pause_count;
-            feedbackText.innerText = data.feedback;
+            document.getElementById('analysisFeedback').innerText = data.feedback;
 
             // New fields
             document.getElementById('transcript-text').innerText = data.transcript || "No speech detected.";
@@ -272,6 +333,8 @@
             // Set Circular Progress (CSS Variable)
             scoreCircle.style.background = `conic-gradient(var(--accent-color) ${data.eye_contact_score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
             document.getElementById('fluency-circle').style.background = `conic-gradient(#ff6b81 ${data.audio_score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+            document.getElementById('smile-circle').style.background = `conic-gradient(#ff9f43 ${data.smile_score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+            document.getElementById('posture-circle').style.background = `conic-gradient(#1dd1a1 ${data.posture_score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
 
             // Switch Views
             practiceView.style.display = 'none';

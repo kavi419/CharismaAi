@@ -10,4 +10,6 @@ import java.util.List;
 @Repository
 public interface SessionRepository extends JpaRepository<PracticeSession, Long> {
     List<PracticeSession> findByUser(User user, Sort sort);
+
+    List<PracticeSession> findByUserOrderByCreatedDateDesc(User user);
 }

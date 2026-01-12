@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practice - CharismaAI</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- CSRF Token -->
+    <meta name="_csrf" th:content="${_csrf.token}" />
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" />
+</head>
+
+<body>
+
+    <!-- Background Blobs -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+
+    <!-- Glass Navbar -->
+    <nav class="navbar">
+        <a href="/" class="logo">CharismaAI</a>
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <a href="#" class="active">Practice</a>
+            <a href="/reports">My Reports</a>
+            <a href="/profile">Profile</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="glass-card practice-card">
+            <h2>Practice Stage</h2>
+            <p style="margin-bottom: 1.5rem;">See yourself, speak confidently.</p>
+
+            <div class="video-container">
+                <video id="webcam" autoplay playsinline muted></video>
+                <div id="video-placeholder">
+                    <i class="fas fa-camera"></i>
+                    <p>Waiting for camera access...</p>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="btn-start" class="btn-control btn-record">
+                    <i class="fas fa-circle"></i> Start Recording
+                </button>
+                <button id="btn-stop" class="btn-control btn-stop" disabled>
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+            </div>
+        </div>
+
+        <!-- Report Card (Hidden by default) -->
+        <div id="report-card" class="glass-card report-card" style="display: none;">
+            <h2>Analysis Report</h2>
+
+            <div class="scores-wrapper">
+                <!-- Eye Contact -->
+                <div class="score-chart-container">
+                    <div class="circular-progress" id="score-circle">
+                        <div class="inner-circle">
+                            <span id="score-text">0%</span>
+                            <small>Eye Contact</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fluency -->
+                <div class="score-chart-container">
+                    <div class="circular-progress" id="fluency-circle">
+                        <div class="inner-circle">
+                            <span id="fluency-text">0%</span>
+                            <small>Fluency</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: -1rem; margin-bottom: 1rem; color: #555;">
+                <strong>Awkward Pauses:</strong> <span id="pause-count">0</span>
+            </div>
+
+            <div class="feedback-box">
+                <i class="fas fa-comment-dots"></i>
+                <p id="feedback-text">Fetching feedback...</p>
+            </div>
+
+            <!-- Transcript -->
+            <div style="margin-top: 1.5rem; text-align: left;">
+                <h4 style="margin-bottom: 0.5rem; color: #555;">Transcript</h4>
+                <div
+                    style="background: rgba(255,255,255,0.4); padding: 10px; border-radius: 8px; font-size: 0.9rem; max-height: 100px; overflow-y: auto; border: 1px solid rgba(0,0,0,0.05);">
+                    <p id="transcript-text" style="color: #333; margin: 0;">Loading transcript...</p>
+                </div>
+                <div style="margin-top: 5px; font-size: 0.8rem; color: #ff6b81;">
+                    <i class="fas fa-exclamation-triangle"></i> Filler Words Detected: <span id="filler-count">0</span>
+                </div>
+            </div>
+
+            <button id="btn-retry" class="btn-start" style="margin-top: 2rem;">
+                <i class="fas fa-redo"></i> Practice Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const placeholder = document.getElementById('video-placeholder');
+        const startBtn = document.getElementById('btn-start');
+        const stopBtn = document.getElementById('btn-stop');
+        const practiceView = document.querySelector('.practice-card'); // To hide video view
+        const reportCard = document.getElementById('report-card');
+        const scoreText = document.getElementById('score-text');
+        const scoreCircle = document.getElementById('score-circle');
+        const feedbackText = document.getElementById('feedback-text');
+        const retryBtn = document.getElementById('btn-retry');
+
+        let mediaRecorder;
+        let recordedChunks = [];
+        let stream;
+
+        // Request Camera Access & Setup Recorder
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoElement.srcObject = stream;
+                placeholder.style.display = 'none';
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+
+                let errorTitle = "Connection Failed";
+                let errorMessage = error.message;
+                let instructions = "Please ensure your camera and microphone are connected and permitted.";
+
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    errorTitle = "Permission Denied";
+                    if (error.message.includes("system")) {
+                        instructions = `
+                            <strong>System Permission Blocked:</strong><br>
+                            It looks like <b>Microphone</b> or <b>Camera</b> access is disabled in Windows.<br><br>
+                            1. Go to <b>Settings > Privacy > Microphone</b>.<br>
+                            2. Turn ON "Let desktop apps access your microphone".<br>
+                            3. Restart Chrome.
+                        `;
+                    } else {
+                        instructions = "Please allow Camera & Microphone permissions in the address bar lock icon.";
+                    }
+                } else if (error.name === 'NotFoundError') {
+                    errorTitle = "Device Not Found";
+                    instructions = "No camera or microphone detected.";
+                }
+
+                placeholder.innerHTML = `
+                    <i class="fas fa-exclamation-circle" style="color: #ff6b81;"></i>
+                    <h3 style="margin: 10px 0;">${errorTitle}</h3>
+                    <p style="font-size: 0.9rem; color: #ddd; max-width: 90%; text-align: center; line-height: 1.5;">${instructions}</p>
+                    <button onclick="window.location.reload()" style="margin-top: 15px; padding: 8px 20px; background: rgba(255,255,255,0.2); border: 1px solid white; color: white; border-radius: 20px; cursor: pointer;">
+                        Retry
+                    </button>
+                    <small style="color: #bcbcbc; display: block; margin-top: 15px; font-size: 0.7rem;">${error.name}: ${errorMessage}</small>
+                `;
+            }
+        }
+
+        // Initialize Camera on Load
+        window.addEventListener('load', startCamera);
+
+        // Start Recording
+        startBtn.addEventListener('click', () => {
+            if (!stream) {
+                alert("Camera not ready. Please allow permissions.");
+                return;
+            }
+
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = uploadVideo;
+
+            mediaRecorder.start();
+
+            // UI Updates
+            startBtn.classList.add('recording');
+            startBtn.innerHTML = '<i class="fas fa-circle"></i> Recording...';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+        });
+
+        // Stop Recording
+        stopBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+
+            // UI Updates
+            startBtn.classList.remove('recording');
+            startBtn.innerHTML = '<i class="fas fa-circle"></i> Start Recording';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+
+        // Upload Video Function
+        async function uploadVideo() {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const formData = new FormData();
+            formData.append('video', blob, 'recording.webm');
+
+            // Show uploading state
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+            startBtn.disabled = true;
+
+            try {
+                const token = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+                const header = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+                const response = await fetch('/upload-video', {
+                    method: 'POST',
+                    headers: {
+                        [header]: token
+                    },
+                    body: formData
+                });
+
+                const resultText = await response.text();
+
+                try {
+                    const data = JSON.parse(resultText);
+
+                    if (response.ok && !data.error) {
+                        // Success: Show Report
+                        showReport(data);
+                    } else {
+                        alert("Analysis failed: " + (data.error || resultText));
+                        resetUI();
+                    }
+                } catch (e) {
+                    console.error("JSON Parse Error:", e);
+                    alert("Server returned unexpected format: " + resultText);
+                    resetUI();
+                }
+
+            } catch (error) {
+                console.error("Upload error:", error);
+                alert("An error occurred during upload.");
+                resetUI();
+            }
+        }
+
+        function showReport(data) {
+            // update UI
+            scoreText.innerText = data.eye_contact_score + "%";
+            document.getElementById('fluency-text').innerText = data.audio_score + "%";
+            document.getElementById('pause-count').innerText = data.pause_count;
+            feedbackText.innerText = data.feedback;
+
+            // New fields
+            document.getElementById('transcript-text').innerText = data.transcript || "No speech detected.";
+            document.getElementById('filler-count').innerText = data.filler_count;
+
+            // Set Circular Progress (CSS Variable)
+            scoreCircle.style.background = `conic-gradient(var(--accent-color) ${data.eye_contact_score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+            document.getElementById('fluency-circle').style.background = `conic-gradient(#ff6b81 ${data.audio_score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+
+            // Switch Views
+            practiceView.style.display = 'none';
+            reportCard.style.display = 'block';
+            reportCard.classList.add('fade-in');
+        }
+
+        function resetUI() {
+            startBtn.innerHTML = '<i class="fas fa-circle"></i> Start Recording';
+            startBtn.disabled = false;
+        }
+
+        // Retry Button
+        retryBtn.addEventListener('click', () => {
+            reportCard.style.display = 'none';
+            practiceView.style.display = 'block';
+            resetUI();
+
+            // Re-init camera if needed or just clear states
+            startBtn.classList.remove('recording');
+            stopBtn.disabled = true;
+        });
+    </script>
+
+</body>
+
+</html>

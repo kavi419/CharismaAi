@@ -1,0 +1,25 @@
+# Spring Boot / Java
+target/
+*.class
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE Settings
+.vscode/
+.idea/
+*.iml
+.settings/
+.classpath
+.project
+
+# Python / AI
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Project Specific
+uploads/
+temp_audio.wav
+logs/

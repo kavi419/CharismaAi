@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - CharismaAI</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- Background Blobs -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+
+    <div class="container" style="padding-top: 0; min-height: 100vh;">
+        <div class="glass-card" style="max-width: 450px; padding: 3rem;">
+            <div style="margin-bottom: 2rem;">
+                <h2 style="color: var(--accent-color); font-weight: 700;">Create Account</h2>
+                <p style="color: #666;">Start your charisma journey today</p>
+            </div>
+
+            <div th:if="${error}" class="alert alert-danger"
+                style="background: rgba(231, 76, 60, 0.2); color: #c0392b; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+                <span th:text="${error}"></span>
+            </div>
+
+            <form th:action="@{/register}" th:object="${user}" method="post">
+                <div style="margin-bottom: 1.5rem; text-align: left;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Username</label>
+                    <div style="position: relative;">
+                        <i class="fas fa-user"
+                            style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa;"></i>
+                        <input type="text" th:field="*{username}" required
+                            style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.8); outline: none;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem; text-align: left;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Email</label>
+                    <div style="position: relative;">
+                        <i class="fas fa-envelope"
+                            style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa;"></i>
+                        <input type="email" th:field="*{email}" required
+                            style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.8); outline: none;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 2rem; text-align: left;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Password</label>
+                    <div style="position: relative;">
+                        <i class="fas fa-lock"
+                            style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa;"></i>
+                        <input type="password" th:field="*{password}" required
+                            style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.8); outline: none;">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-start"
+                    style="width: 100%; border-radius: 10px; font-size: 1rem; padding: 12px;">
+                    Register
+                </button>
+            </form>
+
+            <p style="margin-top: 1.5rem; font-size: 0.9rem;">
+                Already have an account? <a href="/login"
+                    style="color: var(--accent-color); font-weight: 600; text-decoration: none;">Login</a>
+            </p>
+        </div>
+    </div>
+
+</body>
+
+</html>
